@@ -1,5 +1,8 @@
 # Rack::Protection::MaximumCookie
 
+[![Gem Version](https://badge.fury.io/rb/rack-protection-maximum_cookie.svg)](https://badge.fury.io/rb/rack-protection-maximum_cookie)
+[![Build Status](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie.svg?branch=master)](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie)
+
 Some bugs in Rack may cause truncated cookies, token leakage (i.e. transmission
 of a private session over a insecure connection), and/or cross-site request
 forgery. This gem provides a middleware that tries to prevent these scenarios
