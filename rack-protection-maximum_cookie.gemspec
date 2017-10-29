@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = '>= 1.9.3'
 
-  spec.add_dependency 'rack', ENV['RACK_VERSION']
+  spec.add_dependency 'rack', ENV.fetch('RACK_VERSION', '~> 2.0')
 
   spec.add_development_dependency 'bundler', '~> 1.15'
   spec.add_development_dependency 'rack-test', '~> 0.7.0'
