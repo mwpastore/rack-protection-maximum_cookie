@@ -85,7 +85,8 @@ Rack::Protection::MaximumCookie accepts the following options:
 * `:per_domain?` *Boolean*
 
   If true, apply the limit (e.g. 50 cookies) and bytesize limit (e.g. 4,096
-  bytes&mdash;minus any overhead) per domain. **This is the default behavior.**
+  bytes&mdash;minus any per-cookie overhead) per domain. **This is the default
+  behavior.**
 
   If false, apply the limit (e.g. 50 cookies) per request and apply the
   bytesize limit (e.g. 4,096 bytes&mdash;minus any overhead) per cookie.

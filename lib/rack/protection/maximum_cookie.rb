@@ -69,13 +69,13 @@ module Rack
 
         unless options[:bytesize_limit] < 0
           overhead, bytesize_limit = options.values_at(:overhead, :bytesize_limit)
-          keys = cookies
+          bad_keys = cookies
             .keep_if { |cookie| cookie.bytesize + overhead > bytesize_limit }
             .map! { |cookie| cookie[/\A[^=]+/] }
             .tap(&:uniq!)
 
-          if keys.any? && handle(env)
-            raise_error "Too much data for cookie(s): #{keys.join(', ')}"
+          if bad_keys.any? && handle(env)
+            raise_error "Too much data for cookie(s): #{bad_keys.join(', ')}"
           end
         end
       end
@@ -89,7 +89,7 @@ module Rack
         overhead = options[:overhead]
 
         normalize_header(set_cookie).each do |cookie|
-          if subdomain = cookie[DOMAIN_RE, 1]
+          if (subdomain = cookie[DOMAIN_RE, 1])
             subdomain.downcase!
           else
             subdomain = default_subdomain
@@ -106,23 +106,23 @@ module Rack
 
         unless options[:limit] < 0
           limit = options[:limit]
-          domains = count
-            .keep_if { |_, v| v > limit }
+          bad_domains = count
+            .keep_if { |_, value| value > limit }
             .keys
 
-          if domains.any? && handle(env)
-            raise_error "Too many cookies for domain(s): #{domains.join(', ')}"
+          if bad_domains.any? && handle(env)
+            raise_error "Too many cookies for domain(s): #{bad_domains.join(', ')}"
           end
         end
 
         unless options[:bytesize_limit] < 0
           bytesize_limit = options[:bytesize_limit]
-          domains = size
-            .keep_if { |_, v| v > bytesize_limit }
+          bad_domains = size
+            .keep_if { |_, value| value > bytesize_limit }
             .keys
 
-          if domains.any? && handle(env)
-            raise_error "Too much cookie data for domain(s): #{domains.join(', ')}"
+          if bad_domains.any? && handle(env)
+            raise_error "Too much cookie data for domain(s): #{bad_domains.join(', ')}"
           end
         end
       end
