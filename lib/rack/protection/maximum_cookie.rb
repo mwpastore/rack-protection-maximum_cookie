@@ -133,7 +133,7 @@ module Rack
       end
 
       def domain(host)
-        PublicSuffix.domain(host, :list=>public_suffix_list)
+        PublicSuffix.domain(host, :list=>public_suffix_list) || host
       end
 
       def handle(env)
@@ -142,7 +142,7 @@ module Rack
 
       # Borrowed from Rack::Request
       def host(env)
-        host_with_port(env)[/\A[^:]+/]
+        host_with_port(env).sub(/:\d+\z/, '')
       end
 
       # Borrowed from Rack::Request
