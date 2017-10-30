@@ -4,6 +4,7 @@ require 'rack/protection/maximum_cookie/version'
 require 'public_suffix'
 require 'rack'
 require 'rack/request'
+require 'resolv'
 
 module Rack
   HTTP_HOST = 'HTTP_HOST'.freeze unless defined?(HTTP_HOST)
@@ -86,7 +87,7 @@ module Rack
       end
 
       def check_per_domain(env, set_cookie)
-        default_subdomain = domain(host(env)).tap(&:downcase!)
+        default_subdomain = domain(hostname(env).downcase)
 
         count = Hash.new { |h, k| h[k] = 0 }
         size = Hash.new { |h, k| h[k] = 0 }
@@ -133,6 +134,8 @@ module Rack
       end
 
       def domain(host)
+        return host if host =~ Resolv::IPv4::Regex || host =~ Resolv::IPv6::Regex
+
         PublicSuffix.domain(host, :list=>public_suffix_list) || host
       end
 
@@ -140,15 +143,30 @@ module Rack
         handler.nil? || handler.call(env)
       end
 
+      # TODO: Submit a PR to add this to Rack::Request a la URI#host vs. URI#hostname.
+      def hostname(env)
+        host = host(env)
+        return $1 if host =~ /\A\[([^\]]+)\]\z/
+        host
+      end
+
       # Borrowed from Rack::Request
       def host(env)
         host_with_port(env).sub(/:\d+\z/, '')
       end
 
-      # Borrowed from Rack::Request
+      # Borrowed from Rack::Request (with changes)
       def host_with_port(env)
         if (forwarded_host = env[Request::HTTP_X_FORWARDED_HOST])
-          forwarded_host.to_s[/[^,\s]+\z/]
+          # TODO: I don't think X-Forwarded-Host ever contains more than a
+          # single value (unlike X-Forwarded-For), so I'm not sure why
+          # Rack::Request has this test, but we'll do it too, just in case.
+          host = forwarded_host.to_s[/[^,\s]+\z/]
+
+          # If the reverse proxy sends an IPv6 address without brackets,
+          # prevent the last hextet from being stripped off by host() by
+          # enclosing the address in brackets.
+          host =~ Resolv::IPv6::Regex ? "[#{host}]" : host
         elsif (host = env[HTTP_HOST])
           host.to_s
         else

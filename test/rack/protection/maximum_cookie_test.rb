@@ -1,4 +1,4 @@
-require 'test_helper'
+require_relative '../../test_helper'
 
 require 'rack/test'
 require 'securerandom'
@@ -279,5 +279,40 @@ class NoBytesizeLimitTest < Minitest::Test
 
     assert last_response.ok?
     assert_equal '<div>Hello, world!</div>', last_response.body
+  end
+end
+
+class DefaultDomainTest < Minitest::Test
+  include MyAppTest
+  include Rack::Test::Methods
+
+  def app
+    super :limit=>2
+  end
+
+  def test_it_handles_ports
+    error = assert_raises { get 'http://example.org:23' }
+
+    assert_equal 'Too many cookies for domain(s): example.org', error.message
+  end
+
+  def test_it_handles_localhost
+    error = assert_raises { get 'http://localhost' }
+
+    assert_equal 'Too many cookies for domain(s): localhost', error.message
+  end
+
+  def test_it_handles_ipv4_addresses
+    error = assert_raises { get 'http://127.0.0.1' }
+
+    assert_equal 'Too many cookies for domain(s): 127.0.0.1', error.message
+  end
+
+  def test_it_handles_ipv6_addresses_forwarded_for
+    error = assert_raises do
+      get '/', {}, { 'HTTP_X_FORWARDED_HOST'=>'foo, bar, ::1' }
+    end
+
+    assert_equal 'Too many cookies for domain(s): ::1', error.message
   end
 end
