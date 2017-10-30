@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'rack/protection/maximum_cookie/version'
 
+require 'public_suffix'
 require 'rack'
 require 'rack/request'
 
@@ -24,6 +25,7 @@ module Rack
       attr_reader :handler
       attr_reader :options
       attr_reader :check_cookies_meth
+      attr_reader :public_suffix_list
 
       def initialize(app, options={}, &block)
         @app = app
@@ -40,6 +42,9 @@ module Rack
 
         @check_cookies_meth =
           if @options[:strict?] || !!options.fetch(:per_domain?, options.fetch(:per_domain, true))
+            # Allow non-ICANN domains to be handled the same as ICANN domains.
+            @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
+
             :check_per_domain
           else
             :check_simple
@@ -128,7 +133,7 @@ module Rack
       end
 
       def domain(host)
-        host[/[^.]+\.[^.]+\z/]
+        PublicSuffix.domain(host, :list=>public_suffix_list)
       end
 
       def handle(env)
@@ -157,14 +162,14 @@ module Rack
           .tap(&:compact!)
       end
 
-      # Add the values for each primary domain (e.g. example.com) to the values
-      # for its subdomains (e.g. foo. and bar.example.com).
+      # Add the values for each second-level domain (e.g. example.com) to the
+      # values for its subdomains (e.g. foo. and bar.example.com).
       def propogate_values(hash)
         hash.each_key do |subdomain|
-          basedomain = domain(subdomain)
-          next if basedomain == subdomain
-          next unless hash.key?(basedomain)
-          hash[subdomain] += hash[basedomain]
+          sld = domain(subdomain)
+          next if sld == subdomain
+          next unless hash.key?(sld)
+          hash[subdomain] += hash[sld]
         end
       end
 

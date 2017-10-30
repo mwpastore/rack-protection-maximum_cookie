@@ -93,13 +93,13 @@ Rack::Protection::MaximumCookie accepts the following options:
 
 * `:strict?` *Boolean*
 
-  If true, `:per_domain?` is forced to true, and each primary domain's cookies
-  count towards its sub-domains' quotas. For example, if you have cookies for
-  example.com totaling 4,000 bytes, you wouldn't be able to set an additional
-  100-byte cookie on foo.example.com in the same request.
+  If true, `:per_domain?` is forced to true, and each second-level domain's
+  cookies count towards its sub-domains' quotas. For example, if you have
+  cookies for example.com totaling 4,000 bytes, you wouldn't be able to set an
+  additional 100-byte cookie on foo.example.com in the same request.
 
-  If false, each sub-domain gets its own quota, separate from its domain.
-  **This is the default behavior.**
+  If false, each sub-domain gets its own quota, separate from its second-level
+  domain. **This is the default behavior.**
 
 ---
 
