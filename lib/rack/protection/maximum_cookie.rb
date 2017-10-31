@@ -90,7 +90,7 @@ module Rack
         default_subdomain = domain(hostname(env).downcase)
 
         count = Hash.new { |h, k| h[k] = 0 }
-        size = Hash.new { |h, k| h[k] = 0 }
+        bytesize = Hash.new { |h, k| h[k] = 0 }
 
         overhead = options[:overhead]
 
@@ -102,12 +102,12 @@ module Rack
           end
 
           count[subdomain] += 1
-          size[subdomain] += cookie.bytesize + overhead
+          bytesize[subdomain] += cookie.bytesize + overhead
         end
 
         if options[:strict?]
           propogate_values(count)
-          propogate_values(size)
+          propogate_values(bytesize)
         end
 
         unless options[:limit] < 0
@@ -123,7 +123,7 @@ module Rack
 
         unless options[:bytesize_limit] < 0
           bytesize_limit = options[:bytesize_limit]
-          bad_domains = size
+          bad_domains = bytesize
             .keep_if { |_, value| value > bytesize_limit }
             .keys
 
@@ -166,6 +166,7 @@ module Rack
           # If the reverse proxy sends an IPv6 address without brackets,
           # prevent the last hextet from being stripped off by host() by
           # enclosing the address in brackets.
+          # TODO: Submit a PR to add this test to Rack::Request.
           host =~ Resolv::IPv6::Regex ? "[#{host}]" : host
         elsif (host = env[HTTP_HOST])
           host.to_s
