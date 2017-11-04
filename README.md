@@ -17,14 +17,16 @@ prevent these scenarios from occurring.
     and Rack's built-in check for them is nonexistent in the former case and
     not implemented correctly in the latter).
 
-2.  Older browsers that do have per-domain cookie limits enforce these limits
+2.  Browsers that do have per-domain cookie limits enforce these limits
     client-side, cumulatively over time. If you were to set a new cookie, every
-    few minutes, one at a time, eventually you'd hit a limit. In these cases,
-    the per-response protections that this gem provides won't help you.
+    few minutes, one at a time, eventually you'd hit a limit. Or another
+    service could be setting cookies for the domain your service listens on. If
+    this is a concern for your app, see the `:stateful?` option below.
 
-    In practice, your web app is most likely setting the same cookies, for the
+    In practice, your service is most likely setting the same cookies, for the
     same domains, every response, all in the same response, and it knows about
-    all the cookies being set, so this gem should help in those cases.
+    all the cookies being set, so the default behavior of this gem should be
+    appropriate in those cases.
 
 ## Installation
 
@@ -100,6 +102,36 @@ Rack::Protection::MaximumCookie accepts the following options:
 
   If false, each sub-domain gets its own quota, separate from its second-level
   domain. **This is the default behavior.**
+
+* `:stateful?` *Boolean*
+
+  If false, the cookies are evaluated for each response in isolation, i.e.
+  statelessly. **This is the default behavior.**
+
+  If true, `:strict?` is forced to true, and Rack::Protection::MaximumCookie
+  will attempt to compensate for cookies that were set for the domain in
+  previous responses (by this or other web services) but are not present in the
+  current response.
+
+  > This mechanism has its limits. First of all, browsers don't send cookie
+  > directives in request headers&mdash;only key=value pairs&mdash;so in order
+  > to compute the actual size of these cookies,
+  > Rack::Protection::MaximumCookie must estimate the upper bound of the
+  > bytesize of the directives in the original Set-Cookie headers. This
+  > *should* work reasonably well as long as your app doesn't rely on any
+  > non-standard directives or other quirky browser behavior.
+  >
+  > Secondly, browsers won't send cookies if their paths don't match the
+  > request path. This means that if you're setting two cookies, one for
+  > example<i></i>.org/foo and one for example<i></i>.org/bar, requests to
+  > either path won't include the other's cookie. That defeats this mechanism,
+  > as both cookies count toward example<i></i>.org's quota, but they aren't
+  > able to be properly accounted for in the request. The only "workaround" is
+  > to architect your app such that all cookies are set under a path common to
+  > all routes. Unfortunately, this may lead to other security issues.
+  >
+  > This is an ugly wart on HTTP and the reason why modern browsers don't have
+  > per-domain cookie size limits and drop cookies instead of truncating them.
 
 ---
 

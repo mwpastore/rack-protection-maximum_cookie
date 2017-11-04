@@ -1,20 +1,25 @@
 # frozen_string_literal: true
 require 'rack/protection/maximum_cookie/version'
 
+require 'date'
 require 'public_suffix'
 require 'rack'
 require 'rack/request'
 require 'resolv'
+require 'set'
 
 module Rack
-  HTTP_HOST = 'HTTP_HOST'.freeze unless defined?(HTTP_HOST)
-  SERVER_ADDR = 'SERVER_ADDR'.freeze unless defined?(SERVER_ADDR)
-  SERVER_NAME = 'SERVER_NAME'.freeze unless defined?(SERVER_NAME)
-  SERVER_PORT = 'SERVER_PORT'.freeze unless defined?(SERVER_PORT)
   SET_COOKIE = 'Set-Cookie'.freeze unless defined?(SET_COOKIE)
 
   class Request
-    HTTP_X_FORWARDED_HOST = 'HTTP_X_FORWARDED_HOST'.freeze unless defined?(HTTP_X_FORWARDED_HOST)
+    unless method_defined?(:hostname)
+      # TODO: Submit a PR to add this to Rack::Request a la URI#host vs. URI#hostname.
+      def hostname
+        host = host()
+        return $1 if host =~ /\A\[([^\]]+)\]\z/
+        host
+      end
+    end
   end
 
   module Protection
@@ -35,7 +40,8 @@ module Rack
           h[:limit] = Integer(options.fetch(:limit, 50))
           h[:bytesize_limit] = Integer(options.fetch(:bytesize_limit, 4_096))
           h[:overhead] = Integer(options.fetch(:overhead, 3))
-          h[:strict?] = !!options.fetch(:strict?, options.fetch(:strict, false))
+          h[:stateful?] = !!options.fetch(:stateful?, options.fetch(:stateful, false))
+          h[:strict?] = h[:stateful?] || !!options.fetch(:strict?, options.fetch(:strict, false))
           h[:per_domain?] = h[:strict?] || !!options.fetch(:per_domain?, options.fetch(:per_domain, true))
 
           h.freeze
@@ -54,30 +60,44 @@ module Rack
       def call(env)
         status, headers, body = app.call(env)
         if headers.key?(SET_COOKIE)
-          check_cookies(env, normalize_header(headers[SET_COOKIE]))
+          check_cookies env, Rack::Request.new(env),
+            normalize_cookie_header(headers[SET_COOKIE])
         end
         [status, headers, body]
       end
 
       private
 
-      def check_cookies(env, cookies)
-        default_subdomain = hostname(env).downcase
+      def check_cookies(env, request, response_cookies)
+        default_subdomain = request.hostname.downcase
 
-        overhead, per_domain = options.values_at(:overhead, :per_domain?)
+        overhead, per_domain, stateful = options.values_at(:overhead, :per_domain?, :stateful?)
 
+        keys = Hash.new { |h, k| h[k] = Set.new } if stateful
         count = Hash.new { |h, k| h[k] = 0 }
         bytesize = Hash.new { |h, k| h[k] = 0 } if per_domain
 
-        cookies.each do |cookie|
+        response_cookies.each do |cookie|
+          # TODO: Skip "delete" cookies?
+
           if (subdomain = cookie[DOMAIN_RE, 1])
             subdomain.downcase!
           else
             subdomain = default_subdomain
           end
 
+          keys[subdomain] << cookie[/\A[^=]+/] if stateful
           count[subdomain] += 1
           bytesize[subdomain] += cookie.bytesize + overhead if per_domain
+        end
+
+        if stateful
+          # Fold the request cookies (that aren't also present in the response)
+          # into our totals.
+          fold(request, keys) do |domain, cookie_bytesize|
+            count[domain] += 1
+            bytesize[domain] += cookie_bytesize + overhead
+          end
         end
 
         if options[:strict?]
@@ -93,7 +113,7 @@ module Rack
           if per_domain
             check_bytesize_limit_per_domain(env, bytesize, bytesize_limit)
           else
-            check_bytesize_limit_per_cookie(env, cookies, bytesize_limit - overhead)
+            check_bytesize_limit_per_cookie(env, response_cookies, bytesize_limit - overhead)
           end
         end
       end
@@ -139,33 +159,39 @@ module Rack
         handler.nil? || handler.call(env)
       end
 
-      # TODO: Submit a PR to add this to Rack::Request a la URI#host vs. URI#hostname.
-      def hostname(env)
-        host = host(env)
-        return $1 if host =~ /\A\[([^\]]+)\]\z/
-        host
-      end
-
-      # Borrowed from Rack::Request
-      def host(env)
-        host_with_port(env).sub(/:\d+\z/, '')
-      end
-
-      # Borrowed from Rack::Request (with minor changes)
-      def host_with_port(env)
-        if (forwarded_host = env[Request::HTTP_X_FORWARDED_HOST])
-          forwarded_host.to_s[/[^,\s]+\z/]
-        elsif (host = env[HTTP_HOST])
-          host.to_s
-        else
-          "#{env[SERVER_NAME] || env[SERVER_ADDR]}:#{env[SERVER_PORT]}"
-        end
-      end
-
-      def normalize_header(value)
+      def normalize_cookie_header(value)
         Array(value)
           .flat_map { |h| h.to_s.split(HEADER_SEP_RE) }
           .tap(&:compact!)
+      end
+
+      def fold(request, response_cookie_keys)
+        # Assume that all request cookies have a domain of the default
+        # subdomain (e.g. foo.example.com) or its second-level domain (e.g.
+        # example.com).
+        domains = [request.hostname.downcase].tap do |a|
+          a.unshift(domain(a.first))
+          a.uniq!
+        end
+
+        request.cookies.each_pair do |key, value|
+          # *Try* to prevent double-counting cookies (i.e. on the response
+          # and the request).
+          next if domains.any? { |domain| response_cookie_keys[domain].include?(key) }
+
+          # *Try* to estimate the upper bound of the size of the cookie and its
+          # directives in the original Set-Cookie header.
+          # TODO: Replace this with a simpler byte count for efficiency?
+          mock_cookie = String.new("#{key}=#{value}")
+          mock_cookie << "; domain=#{domains.last}"
+          mock_cookie << "; path=#{request.script_name}"
+          mock_cookie << '; max_age=123456'
+          mock_cookie << "; expires=#{Date.today.httpdate}"
+          mock_cookie << '; secure' if request.ssl?
+          mock_cookie << '; HttpOnly; SameSite=strict'
+
+          yield domains.first, mock_cookie.bytesize
+        end
       end
 
       # Add the values for each second-level domain (e.g. example.com) to the
