@@ -136,21 +136,6 @@ class PerCookieBehaviorTest < Minitest::Test
   end
 end
 
-class PerCookieLimitTest < Minitest::Test
-  include MyAppTest
-  include Rack::Test::Methods
-
-  def app
-    super :per_domain=>false, :limit=>2
-  end
-
-  def test_limit_per_request
-    error = assert_raises { get '/' }
-
-    assert_equal 'Too many cookies', error.message
-  end
-end
-
 class PerCookieBytesizeLimitTest < Minitest::Test
   include MyAppTest
   include Rack::Test::Methods
@@ -186,7 +171,7 @@ class TrueHandlerTest < Minitest::Test
   include Rack::Test::Methods
 
   def app
-    super :per_domain=>false, :limit=>2 do |env|
+    super :limit=>2 do |env|
       @handler_did_fire = true
     end
   end
@@ -198,7 +183,7 @@ class TrueHandlerTest < Minitest::Test
 
     assert @handler_did_fire
 
-    assert_equal 'Too many cookies', error.message
+    assert_equal 'Too many cookies for domain(s): example.org', error.message
   end
 end
 

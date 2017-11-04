@@ -3,16 +3,16 @@
 [![Gem Version](https://badge.fury.io/rb/rack-protection-maximum_cookie.svg)](https://badge.fury.io/rb/rack-protection-maximum_cookie)
 [![Build Status](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie.svg?branch=master)](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie)
 
-Some bugs in Rack may cause truncated cookies, token leakage (i.e. transmission
-of a private session over a insecure connection), and/or cross-site request
-forgery. This gem provides a middleware that tries to prevent these scenarios
-from occurring.
+Some bugs in Rack may cause dropped or truncated cookies, token leakage (i.e.
+transmission of a private session over a insecure connection), and/or
+cross-site request forgery. This gem provides a middleware that tries to
+prevent these scenarios from occurring.
 
 ### Caveats
 
-1.  Most modern browsers no longer have [per-domain cookie limits][1], so if
-    you only care about modern browsers, go ahead and set `:per_domain?` to
-    false. You'll benefit from the per-request cookie limit and per-cookie
+1.  Most modern browsers no longer have a [per-domain cookie size limit][1],
+    so if you only care about modern browsers, go ahead and set `:per_domain?`
+    to false. You'll benefit from the per-domain cookie limit and per-cookie
     bytesize limit (since most browsers still have some form of these limits,
     and Rack's built-in check for them is nonexistent in the former case and
     not implemented correctly in the latter).
@@ -69,27 +69,27 @@ Rack::Protection::MaximumCookie accepts the following options:
 
 * `:limit` *Integer*
 
-  Maximum number of cookies in the response. **50 cookies by default.** Set to
-  a negative number to disable.
+  Maximum number of cookies per domain. **50 cookies by default.** Set to a
+  negative number to disable.
 
 * `:bytesize_limit` *Integer*
 
-  Maximum size&mdash;in bytes&mdash;of cookies in the response. **4,096 bytes
-  by default.** Set to a negative number to disable.
+  Maximum size&mdash;in bytes&mdash;of cookies per domain (if `:per_domain?` is
+  set to true), or the maximum size of each cookie (if `:per_domain?` is set to
+  false). **4,096 bytes by default.** Set to a negative number to disable.
 
 * `:overhead` *Integer*
 
-  Overhead&mdash;in bytes&mdash;per cookie. **3 bytes by default.** Set to zero
-  to disable.
+  Overhead&mdash;in bytes&mdash;per cookie. **Three (3) bytes by default.** Set to
+  zero to disable.
 
 * `:per_domain?` *Boolean*
 
-  If true, apply the limit (e.g. 50 cookies) and bytesize limit (e.g. 4,096
-  bytes&mdash;minus any per-cookie overhead) per domain. **This is the default
-  behavior.**
+  If true, apply the bytesize limit (e.g. 4,096 bytes&mdash;minus any
+  per-cookie overhead) per domain. **This is the default behavior.**
 
-  If false, apply the limit (e.g. 50 cookies) per request and apply the
-  bytesize limit (e.g. 4,096 bytes&mdash;minus any overhead) per cookie.
+  If false, apply the bytesize limit (e.g. 4,096 bytes&mdash;minus any
+  overhead) per cookie.
 
 * `:strict?` *Boolean*
 

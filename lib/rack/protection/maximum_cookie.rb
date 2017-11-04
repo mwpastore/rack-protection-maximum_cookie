@@ -25,7 +25,6 @@ module Rack
       attr_reader :app
       attr_reader :handler
       attr_reader :options
-      attr_reader :check_cookies_meth
       attr_reader :public_suffix_list
 
       def initialize(app, options={}, &block)
@@ -37,19 +36,13 @@ module Rack
           h[:bytesize_limit] = Integer(options.fetch(:bytesize_limit, 4_096))
           h[:overhead] = Integer(options.fetch(:overhead, 3))
           h[:strict?] = !!options.fetch(:strict?, options.fetch(:strict, false))
+          h[:per_domain?] = h[:strict?] || !!options.fetch(:per_domain?, options.fetch(:per_domain, true))
 
           h.freeze
         end
 
-        @check_cookies_meth =
-          if @options[:strict?] || !!options.fetch(:per_domain?, options.fetch(:per_domain, true))
-            # Allow non-ICANN domains to be handled the same as ICANN domains.
-            @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
-
-            :check_per_domain
-          else
-            :check_simple
-          end
+        # Allow non-ICANN domains to be handled the same as ICANN domains.
+        @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
 
         if @options[:limit] < 0 && @options[:bytesize_limit] < 0
           abort 'No limits, nothing to do!'
@@ -58,43 +51,23 @@ module Rack
 
       def call(env)
         status, headers, body = app.call(env)
-        send(check_cookies_meth, env, headers[SET_COOKIE]) if headers.key?(SET_COOKIE)
+        if headers.key?(SET_COOKIE)
+          check_cookies(env, normalize_header(headers[SET_COOKIE]))
+        end
         [status, headers, body]
       end
 
       private
 
-      def check_simple(env, set_cookie)
-        cookies = normalize_header(set_cookie)
-
-        unless options[:limit] < 0
-          if cookies.size > options[:limit] && handle(env)
-            raise_error 'Too many cookies'
-          end
-        end
-
-        unless options[:bytesize_limit] < 0
-          overhead, bytesize_limit = options.values_at(:overhead, :bytesize_limit)
-          bad_keys = cookies
-            .keep_if { |cookie| cookie.bytesize + overhead > bytesize_limit }
-            .map! { |cookie| cookie[/\A[^=]+/] }
-            .tap(&:uniq!)
-
-          if bad_keys.any? && handle(env)
-            raise_error "Too much data for cookie(s): #{bad_keys.join(', ')}"
-          end
-        end
-      end
-
-      def check_per_domain(env, set_cookie)
+      def check_cookies(env, cookies)
         default_subdomain = domain(hostname(env).downcase)
 
+        overhead, per_domain = options.values_at(:overhead, :per_domain?)
+
         count = Hash.new { |h, k| h[k] = 0 }
-        bytesize = Hash.new { |h, k| h[k] = 0 }
+        bytesize = Hash.new { |h, k| h[k] = 0 } if per_domain
 
-        overhead = options[:overhead]
-
-        normalize_header(set_cookie).each do |cookie|
+        cookies.each do |cookie|
           if (subdomain = cookie[DOMAIN_RE, 1])
             subdomain.downcase!
           else
@@ -102,34 +75,55 @@ module Rack
           end
 
           count[subdomain] += 1
-          bytesize[subdomain] += cookie.bytesize + overhead
+          bytesize[subdomain] += cookie.bytesize + overhead if per_domain
         end
 
         if options[:strict?]
           propogate_values(count)
-          propogate_values(bytesize)
+          propogate_values(bytesize) if per_domain
         end
 
-        unless options[:limit] < 0
-          limit = options[:limit]
-          bad_domains = count
-            .keep_if { |_, value| value > limit }
-            .keys
+        limit, bytesize_limit = options.values_at(:limit, :bytesize_limit)
 
-          if bad_domains.any? && handle(env)
-            raise_error "Too many cookies for domain(s): #{bad_domains.join(', ')}"
+        check_limit_per_domain(env, count, limit) unless limit < 0
+
+        unless bytesize_limit < 0
+          if per_domain
+            check_bytesize_limit_per_domain(env, bytesize, bytesize_limit)
+          else
+            check_bytesize_limit_per_cookie(env, cookies, bytesize_limit - overhead)
           end
         end
+      end
 
-        unless options[:bytesize_limit] < 0
-          bytesize_limit = options[:bytesize_limit]
-          bad_domains = bytesize
-            .keep_if { |_, value| value > bytesize_limit }
-            .keys
+      def check_limit_per_domain(env, acc, limit)
+        bad_domains = acc
+          .keep_if { |_, value| value > limit }
+          .keys
 
-          if bad_domains.any? && handle(env)
-            raise_error "Too much cookie data for domain(s): #{bad_domains.join(', ')}"
-          end
+        if bad_domains.any? && handle(env)
+          raise_error "Too many cookies for domain(s): #{bad_domains.join(', ')}"
+        end
+      end
+
+      def check_bytesize_limit_per_domain(env, acc, limit)
+        bad_domains = acc
+          .keep_if { |_, value| value > limit }
+          .keys
+
+        if bad_domains.any? && handle(env)
+          raise_error "Too much cookie data for domain(s): #{bad_domains.join(', ')}"
+        end
+      end
+
+      def check_bytesize_limit_per_cookie(env, cookies, limit)
+        bad_cookies = cookies
+          .keep_if { |cookie| cookie.bytesize > limit }
+          .map! { |cookie| cookie[/\A[^=]+/] }
+          .tap(&:uniq!)
+
+        if bad_cookies.any? && handle(env)
+          raise_error "Too much data for cookie(s): #{bad_cookies.join(', ')}"
         end
       end
 
@@ -166,7 +160,7 @@ module Rack
           # If the reverse proxy sends an IPv6 address without brackets,
           # prevent the last hextet from being stripped off by host() by
           # enclosing the address in brackets.
-          # TODO: Submit a PR to add this test to Rack::Request.
+          # https://github.com/rack/rack/pull/1213
           host =~ Resolv::IPv6::Regex ? "[#{host}]" : host
         elsif (host = env[HTTP_HOST])
           host.to_s
