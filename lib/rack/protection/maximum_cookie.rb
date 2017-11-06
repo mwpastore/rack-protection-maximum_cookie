@@ -25,7 +25,8 @@ module Rack
   module Protection
     class MaximumCookie
       HEADER_SEP_RE = %r{\r?\n|\0}.freeze
-      DOMAIN_RE = %r{;\s*[Dd][Oo][Mm][Aa][Ii][Nn]=([^;]+)}.freeze
+      COOKIE_DOMAIN_RE = %r{;\s*[Dd][Oo][Mm][Aa][Ii][Nn]=([^;]+)}.freeze
+      COOKIE_KEY_RE = %r{\A[^=]+}.freeze
 
       attr_reader :app
       attr_reader :handler
@@ -109,13 +110,13 @@ module Rack
         response_cookies.each do |cookie|
           # TODO: Skip "delete" cookies?
 
-          if (subdomain = cookie[DOMAIN_RE, 1])
+          if (subdomain = cookie[COOKIE_DOMAIN_RE, 1])
             subdomain.downcase!
           else
             subdomain = default_subdomain
           end
 
-          keys[subdomain] << cookie[/\A[^=]+/] if stateful?
+          keys[subdomain] << cookie[COOKIE_KEY_RE] if stateful?
           count[subdomain] += 1
           bytesize[subdomain] += cookie.bytesize + overhead if per_domain?
         end
@@ -168,7 +169,7 @@ module Rack
       def check_bytesize_limit_per_cookie(env, cookies, limit)
         bad_cookies = cookies
           .keep_if { |cookie| cookie.bytesize > limit }
-          .map! { |cookie| cookie[/\A[^=]+/] }
+          .map! { |cookie| cookie[COOKIE_KEY_RE] }
           .tap(&:uniq!)
 
         if bad_cookies.any? && handle(env)
