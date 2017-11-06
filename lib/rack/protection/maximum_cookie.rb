@@ -87,9 +87,9 @@ module Rack
 
         limit, bytesize_limit = options.values_at(:limit, :bytesize_limit)
 
-        check_limit_per_domain(env, count, limit) unless limit < 0
+        check_limit_per_domain(env, count, limit) if limit >= 0
 
-        unless bytesize_limit < 0
+        if bytesize_limit >= 0
           if per_domain
             check_bytesize_limit_per_domain(env, bytesize, bytesize_limit)
           else
