@@ -29,8 +29,39 @@ module Rack
 
       attr_reader :app
       attr_reader :handler
-      attr_reader :options
       attr_reader :public_suffix_list
+
+      def limit
+        @options[:limit]
+      end
+
+      def limit?
+        @options[:limit] >= 0
+      end
+
+      def bytesize_limit
+        @options[:bytesize_limit]
+      end
+
+      def bytesize_limit?
+        @options[:bytesize_limit] >= 0
+      end
+
+      def overhead
+        @options[:overhead]
+      end
+
+      def per_domain?
+        @options[:per_domain?]
+      end
+
+      def strict?
+        @options[:strict?]
+      end
+
+      def stateful?
+        @options[:stateful?]
+      end
 
       def initialize(app, options={}, &block)
         @app = app
@@ -47,12 +78,12 @@ module Rack
           h.freeze
         end
 
-        if @options[:strict?]
+        if strict?
           # Allow non-ICANN domains to be handled the same as ICANN domains.
           @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
         end
 
-        if @options[:limit] < 0 && @options[:bytesize_limit] < 0
+        unless limit? || bytesize_limit?
           abort 'No limits, nothing to do!'
         end
       end
@@ -71,11 +102,9 @@ module Rack
       def check_cookies(env, request, response_cookies)
         default_subdomain = request.hostname.downcase
 
-        overhead, per_domain, stateful = options.values_at(:overhead, :per_domain?, :stateful?)
-
-        keys = Hash.new { |h, k| h[k] = Set.new } if stateful
+        keys = Hash.new { |h, k| h[k] = Set.new } if stateful?
         count = Hash.new { |h, k| h[k] = 0 }
-        bytesize = Hash.new { |h, k| h[k] = 0 } if per_domain
+        bytesize = Hash.new { |h, k| h[k] = 0 } if per_domain?
 
         response_cookies.each do |cookie|
           # TODO: Skip "delete" cookies?
@@ -86,12 +115,12 @@ module Rack
             subdomain = default_subdomain
           end
 
-          keys[subdomain] << cookie[/\A[^=]+/] if stateful
+          keys[subdomain] << cookie[/\A[^=]+/] if stateful?
           count[subdomain] += 1
-          bytesize[subdomain] += cookie.bytesize + overhead if per_domain
+          bytesize[subdomain] += cookie.bytesize + overhead if per_domain?
         end
 
-        if stateful
+        if stateful?
           # Fold the request cookies (that aren't also present in the response)
           # into our totals.
           fold(request, keys) do |domain, cookie_bytesize|
@@ -100,17 +129,15 @@ module Rack
           end
         end
 
-        if options[:strict?]
+        if strict?
           propogate_values(count)
           propogate_values(bytesize)
         end
 
-        limit, bytesize_limit = options.values_at(:limit, :bytesize_limit)
+        check_limit_per_domain(env, count, limit) if limit?
 
-        check_limit_per_domain(env, count, limit) if limit >= 0
-
-        if bytesize_limit >= 0
-          if per_domain
+        if bytesize_limit?
+          if per_domain?
             check_bytesize_limit_per_domain(env, bytesize, bytesize_limit)
           else
             check_bytesize_limit_per_cookie(env, response_cookies, bytesize_limit - overhead)
