@@ -293,9 +293,9 @@ class DefaultDomainTest < Minitest::Test
     assert_equal 'Too many cookies for domain(s): 127.0.0.1', error.message
   end
 
-  def test_it_handles_ipv6_addresses_forwarded_for
+  def test_it_handles_ipv6_addresses_forwarded_host
     error = assert_raises do
-      get '/', {}, { 'HTTP_X_FORWARDED_HOST'=>'foo, bar, ::1' }
+      get '/', {}, { 'HTTP_X_FORWARDED_HOST'=>'foo, bar, [::1]' }
     end
 
     assert_equal 'Too many cookies for domain(s): ::1', error.message

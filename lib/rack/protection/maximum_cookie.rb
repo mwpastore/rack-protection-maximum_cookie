@@ -151,19 +151,10 @@ module Rack
         host_with_port(env).sub(/:\d+\z/, '')
       end
 
-      # Borrowed from Rack::Request (with changes)
+      # Borrowed from Rack::Request (with minor changes)
       def host_with_port(env)
         if (forwarded_host = env[Request::HTTP_X_FORWARDED_HOST])
-          # TODO: I don't think X-Forwarded-Host ever contains more than a
-          # single value (unlike X-Forwarded-For), so I'm not sure why
-          # Rack::Request has this test, but we'll do it too, just in case.
-          host = forwarded_host.to_s[/[^,\s]+\z/]
-
-          # If the reverse proxy sends an IPv6 address without brackets,
-          # prevent the last hextet from being stripped off by host() by
-          # enclosing the address in brackets.
-          # https://github.com/rack/rack/pull/1213
-          host =~ Resolv::IPv6::Regex ? "[#{host}]" : host
+          forwarded_host.to_s[/[^,\s]+\z/]
         elsif (host = env[HTTP_HOST])
           host.to_s
         else
