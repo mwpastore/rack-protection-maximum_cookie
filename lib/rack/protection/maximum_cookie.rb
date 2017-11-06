@@ -41,8 +41,10 @@ module Rack
           h.freeze
         end
 
-        # Allow non-ICANN domains to be handled the same as ICANN domains.
-        @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
+        if @options[:strict?]
+          # Allow non-ICANN domains to be handled the same as ICANN domains.
+          @public_suffix_list = PublicSuffix::List.parse(::File.read(PublicSuffix::List::DEFAULT_LIST_PATH), :private_domains=>false)
+        end
 
         if @options[:limit] < 0 && @options[:bytesize_limit] < 0
           abort 'No limits, nothing to do!'
@@ -60,7 +62,7 @@ module Rack
       private
 
       def check_cookies(env, cookies)
-        default_subdomain = domain(hostname(env).downcase)
+        default_subdomain = hostname(env).downcase
 
         overhead, per_domain = options.values_at(:overhead, :per_domain?)
 
@@ -80,7 +82,7 @@ module Rack
 
         if options[:strict?]
           propogate_values(count)
-          propogate_values(bytesize) if per_domain
+          propogate_values(bytesize)
         end
 
         limit, bytesize_limit = options.values_at(:limit, :bytesize_limit)
