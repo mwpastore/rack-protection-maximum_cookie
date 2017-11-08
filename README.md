@@ -3,10 +3,11 @@
 [![Gem Version](https://badge.fury.io/rb/rack-protection-maximum_cookie.svg)](https://badge.fury.io/rb/rack-protection-maximum_cookie)
 [![Build Status](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie.svg?branch=master)](https://travis-ci.org/mwpastore/rack-protection-maximum_cookie)
 
-Some bugs in Rack may cause dropped or truncated cookies, token leakage (i.e.
-transmission of a private session over a insecure connection), and/or
-cross-site request forgery. This gem provides a middleware that tries to
-prevent these scenarios from occurring.
+Some bugs in Rack may cause cookies to be silently dropped&mdash;or worse,
+truncated, leading to token leakage (i.e. transmission of a private session
+over a insecure connection), cross-site scripting vulnerabilities, and/or
+cross-site request forgery vulnerabilities. This gem provides a middleware that
+tries to prevent these scenarios from occurring.
 
 ### Caveats
 
@@ -67,7 +68,7 @@ service like Sentry, Rollbar, or Airbrake, and insert this middleware after it.
 
 ### Advanced
 
-Rack::Protection::MaximumCookie accepts the following options:
+Rack::Protection::MaximumCookie accepts the following `use`-time options:
 
 * `:limit` *Integer*
 
@@ -95,13 +96,14 @@ Rack::Protection::MaximumCookie accepts the following options:
 
 * `:strict?` *Boolean*
 
-  If true, `:per_domain?` is forced to true, and each second-level domain's
-  cookies count towards its sub-domains' quotas. For example, if you have
-  cookies for example.com totaling 4,000 bytes, you wouldn't be able to set an
-  additional 100-byte cookie on foo.example.com in the same request.
-
   If false, each sub-domain gets its own quota, separate from its second-level
   domain. **This is the default behavior.**
+
+  If true, `:per_domain?` is forced to true, and each second-level domain's
+  cookies count towards its sub-domains' quotas. For example, if you have
+  cookies for example<i></i>.org totaling 4,000 bytes, you wouldn't be able to
+  set an additional 100-byte cookie on foo.example<i></i>.org in the same
+  request.
 
 * `:stateful?` *Boolean*
 
@@ -133,7 +135,7 @@ Rack::Protection::MaximumCookie accepts the following options:
   > This is an ugly wart on HTTP and the reason why modern browsers don't have
   > per-domain cookie size limits and drop cookies instead of truncating them.
 
----
+#### Block Argument
 
 If you don't want to raise exceptions, only want to raise exceptions under
 certain conditions, or want to customize the exception, you can modify the
@@ -172,6 +174,9 @@ git commits and tags, and push the `.gem` file to
 
 Bug reports and pull requests are welcome on GitHub at
 https://github.com/mwpastore/rack-protection-maximum_cookie.
+
+Please let me know if I've made any invalid assumptions or conclusions about
+the HTTP specification or older browser behavior.
 
 ## License
 
