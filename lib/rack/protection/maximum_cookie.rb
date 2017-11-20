@@ -100,14 +100,14 @@ module Rack
 
       private
 
-      def check_cookies(env, request, response_cookies)
+      def check_cookies(env, request, cookies)
         default_subdomain = request.hostname.downcase
 
         keys = Hash.new { |h, k| h[k] = Set.new } if stateful?
         count = Hash.new { |h, k| h[k] = 0 }
         bytesize = Hash.new { |h, k| h[k] = 0 } if per_domain?
 
-        response_cookies.each do |cookie|
+        cookies.each do |cookie|
           # TODO: Skip "delete" cookies?
 
           if (subdomain = cookie[COOKIE_DOMAIN_RE, 1])
@@ -141,7 +141,7 @@ module Rack
           if per_domain?
             check_bytesize_limit_per_domain(env, bytesize, bytesize_limit)
           else
-            check_bytesize_limit_per_cookie(env, response_cookies, bytesize_limit - overhead)
+            check_bytesize_limit_per_cookie(env, cookies, bytesize_limit - overhead)
           end
         end
       end
