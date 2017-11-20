@@ -100,7 +100,7 @@ module Rack
       private
 
       def check_cookies(env, request, cookies)
-        default_subdomain = request.hostname.downcase(:fold)
+        default_subdomain = foldcase(request.hostname)
 
         keys = Hash.new { |h, k| h[k] = Set.new } if stateful?
         count = Hash.new { |h, k| h[k] = 0 }
@@ -110,7 +110,7 @@ module Rack
           # TODO: Skip "delete" cookies?
 
           if (subdomain = cookie[COOKIE_DOMAIN_RE, 1])
-            subdomain.downcase!(:fold)
+            foldcase!(subdomain)
           else
             subdomain = default_subdomain
           end
@@ -194,11 +194,29 @@ module Rack
           .tap(&:compact!)
       end
 
+      if String.instance_method(:downcase).arity.abs > 0
+        def foldcase(str)
+          str.downcase(:fold)
+        end
+
+        def foldcase!(str)
+          str.downcase!(:fold)
+        end
+      else
+        def foldcase(str)
+          str.downcase
+        end
+
+        def foldcase!(str)
+          str.downcase!
+        end
+      end
+
       def fold(request, response_cookie_keys)
         # Assume that all request cookies have a domain of the default
         # subdomain (e.g. foo.example.com) or its second-level domain (e.g.
         # example.com).
-        domains = [request.hostname.downcase(:fold)].tap do |a|
+        domains = [foldcase(request.hostname)].tap do |a|
           a.unshift(domain(a.first))
           a.uniq!
         end
