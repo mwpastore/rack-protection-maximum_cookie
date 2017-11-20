@@ -16,8 +16,7 @@ module Rack
       # TODO: Submit a PR to add this to Rack::Request a la URI#host vs. URI#hostname.
       def hostname
         host = host()
-        return $1 if host =~ /\A\[([^\]]+)\]\z/
-        host
+        host[/\A\[([^\]]+)\]\z/, 1] || host
       end
     end
   end
@@ -131,6 +130,8 @@ module Rack
         end
 
         if strict?
+          # Add the values for each second-level domain (e.g. example.com) to
+          # the values for its subdomains (e.g. foo. and bar.example.com).
           propogate_values(count)
           propogate_values(bytesize)
         end
@@ -177,10 +178,10 @@ module Rack
         end
       end
 
-      def domain(host)
-        return host if host =~ Resolv::IPv4::Regex || host =~ Resolv::IPv6::Regex
+      def domain(hostname)
+        return hostname if hostname =~ Resolv::IPv4::Regex || hostname =~ Resolv::IPv6::Regex
 
-        PublicSuffix.domain(host, :list=>public_suffix_list) || host
+        PublicSuffix.domain(hostname, :list=>public_suffix_list) || hostname
       end
 
       def handle(env)
@@ -210,20 +211,19 @@ module Rack
           # *Try* to estimate the upper bound of the size of the cookie and its
           # directives in the original Set-Cookie header.
           # TODO: Replace this with a simpler byte count for efficiency?
-          mock_cookie = String.new("#{key}=#{value}")
-          mock_cookie << "; domain=#{domains.last}"
-          mock_cookie << "; path=#{request.script_name}"
-          mock_cookie << '; max_age=123456'
-          mock_cookie << "; expires=#{Date.today.httpdate}"
-          mock_cookie << '; secure' if request.ssl?
-          mock_cookie << '; HttpOnly; SameSite=strict'
+          mock_cookie = String.new("#{key}=#{value}").tap do |s|
+            s << "; Expires=#{Date.today.httpdate}"
+            s << '; Max-Age=123456'
+            s << "; Domain=#{domains.last}"
+            s << "; Path=#{request.script_name}"
+            s << '; Secure' if request.ssl?
+            s << '; HttpOnly; SameSite=strict'
+          end
 
           yield domains.first, mock_cookie.bytesize
         end
       end
 
-      # Add the values for each second-level domain (e.g. example.com) to the
-      # values for its subdomains (e.g. foo. and bar.example.com).
       def propogate_values(hash)
         hash.each_key do |subdomain|
           sld = domain(subdomain)
