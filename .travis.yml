@@ -2,23 +2,25 @@ sudo: false
 language: ruby
 rvm:
   - ruby-head
-  - 2.4.2
-  - 2.3.5
-  - 2.2.8
+  - 2.5.1
+  - 2.4.4
+  - 2.3.7
+  - 2.2.10
   - 2.1.10
   - jruby-head
-  - jruby-9.1.13.0
+  - jruby-9.1.17.0
   - jruby-9.0.5.0
 env:
   - RACK_VERSION='~> 2.0.0'
   - RACK_VERSION='~> 1.6.8'
   - RACK_VERSION='~> 1.5.5'
   - RACK_VERSION='~> 1.4.7'
-before_install: gem install bundler -v 1.15.4
+before_install: gem install bundler -v 1.16.1
 matrix:
   allow_failures:
     - rvm: ruby-head
     - rvm: jruby-head
+    - rvm: jruby-9.0.5.0
   exclude:
     - rvm: 2.1.10
       env: RACK_VERSION='~> 2.0.0'
