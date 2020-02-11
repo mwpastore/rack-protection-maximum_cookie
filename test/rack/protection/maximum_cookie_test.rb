@@ -4,7 +4,7 @@ require 'rack/test'
 require 'securerandom'
 
 MyApp = proc do
-  Rack::MockResponse.new 200, {
+  response = Rack::MockResponse.new 200, {
     'Set-Cookie'=><<-EOF
 foo.bar=12345; Secure; HttpOnly; SameSite=strict
 bar.qux=67890; Secure; HttpOnly; SameSite=strict
@@ -15,6 +15,7 @@ qux.foo=09876; Domain=foo.example.com
 foo.bar=12345; Path=/; Domain=example.net; Expires=Sun, 26 Nov 2017 22:38:06 -0000
     EOF
   }, '<div>Hello, world!</div>'
+  response.finish
 end
 
 module MyAppTest
@@ -219,9 +220,10 @@ class NoLimitTest < Minitest::Test
   def app
     Rack::Builder.new do
       app = proc do
-        Rack::MockResponse.new 200, {
-          'Set-Cookie'=>Array.new(1_000, 'a=b')
+        response = Rack::MockResponse.new 200, {
+          'Set-Cookie'=>Array.new(1_000, 'a=b').join("\n")
         }, '<div>Hello, world!</div>'
+        response.finish
       end
 
       use Rack::Protection::MaximumCookie,
@@ -246,9 +248,11 @@ class NoBytesizeLimitTest < Minitest::Test
   def app
     Rack::Builder.new do
       app = proc do
-        Rack::MockResponse.new 200, {
-          'Set-Cookie'=>"foo.bar=#{SecureRandom.base64(10_000)}"
+        random_string = Rack::Utils.escape SecureRandom.base64(10_000)
+        response = Rack::MockResponse.new 200, {
+          'Set-Cookie'=>"foo.bar=#{random_string}"
         }, '<div>Hello, world!</div>'
+        response.finish
       end
 
       use Rack::Protection::MaximumCookie,

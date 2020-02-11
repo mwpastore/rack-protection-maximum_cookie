@@ -11,16 +11,6 @@ require 'set'
 module Rack
   SET_COOKIE = 'Set-Cookie'.freeze unless defined?(SET_COOKIE)
 
-  class Request
-    unless method_defined?(:hostname)
-      # TODO: Submit a PR to add this to Rack::Request a la URI#host vs. URI#hostname.
-      def hostname
-        host = host()
-        host[/\A\[([^\]]+)\]\z/, 1] || host
-      end
-    end
-  end
-
   module Protection
     class MaximumCookie
       HEADER_SEP_RE = %r{\r?\n|\0}.freeze
