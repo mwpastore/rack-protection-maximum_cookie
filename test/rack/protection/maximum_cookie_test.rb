@@ -12,7 +12,7 @@ qux.foo=09876; Secure; HttpOnly; SameSite=strict
 foo.bar=12345; Domain=eXample.com
 bar.qux=67890; domain=exAmple.com
 qux.foo=09876; Domain=foo.example.com
-foo.bar=12345; Path=/; Domain=example.net; Expires=Sun, 26 Nov 2017 22:38:06 -0000
+foo.bar=12345; Path=/; Domain=example.net; Expires=Sun, 26 Nov 2017 22:38:06 GMT
     EOF
   }, '<div>Hello, world!</div>'
   response.finish
